@@ -42,6 +42,11 @@ class App:
             FirstToSecondCardinality.EXACTLY_ONE,
             SecondToFirstCardinality.EXACTLY_ONE,
         ),
+        # Add ParentalKey with relationship similar to ForeignKey
+        "ParentalKey": (
+            FirstToSecondCardinality.ONE_OR_MORE,
+            SecondToFirstCardinality.EXACTLY_ONE,
+        ),
     }
 
     DEFAULT_TITLE = "Django ER Diagram"
@@ -62,6 +67,11 @@ class App:
     def process_relationship(
         self, model: Model, field_name: str, field_type: str, field_related_model: Model
     ) -> None:
+        # Skip if the relationship type is not in our map
+        if field_type not in self.RELATIONSHIP_MAP:
+            print(f"Skipping unsupported relationship type: {field_type}")
+            return
+
         (
             first_to_second_cardinality,
             second_to_first_cardinality,
@@ -82,18 +92,25 @@ class App:
         for field in model._meta.get_fields():
             if not field.concrete:
                 continue
-            field_name, field_type, field_related_model = (
-                field.name,
-                field.get_internal_type(),
-                field.related_model,
-            )
+
+            # Get the field type name for relationship detection
+            field_type = field.__class__.__name__
+
+            # For regular Django fields, use get_internal_type()
+            internal_type = getattr(field, "get_internal_type", lambda: field_type)()
+
+            field_name = field.name
+            field_related_model = getattr(field, "related_model", None)
+
             attributes.append(
                 Attribute(
                     attribute_name=field_name,
-                    attribute_type=field_type,
+                    attribute_type=internal_type,
                 )
             )
+
             if field_related_model:
+                # Use the field class name for relationship mapping
                 self.process_relationship(
                     model,
                     field_name,
